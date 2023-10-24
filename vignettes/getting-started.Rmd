@@ -1,0 +1,181 @@
+---
+title: "Getting started"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{getting-started}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(deglr)
+library(glmnet)
+library(survival)
+library(tidyverse)
+```
+
+## Setup
+
+Here we set the number of observations from the target and external populations
+as well as the number of predictors:
+```{r}
+n_tar = 50;
+n_ext = 1000;
+d = 5;
+```
+
+We will generate the predictors from multivariate normal distributions with mean
+zero and covariance matrices sampled from a Wishart distribution. You can increase
+the `wishart_precision` to force the diagonals closer to 1, and you can change
+`correlation` to increase or decrease the correlation between predictors. You 
+can change `scale_target` to modify the relative values of covariance matrices
+between the populations; a value of 1 means they share the same covariance matrix;
+a value less than 1 means that the target population has less variability. 
+
+```{r}
+wishart_precision = 10; 
+correlation = 0.15
+scale_target = 0.45;
+set.seed(1);
+cov_tar = rWishart(1, df = d * wishart_precision, (correlation + diag(1 - correlation, d)) / (d * wishart_precision))[, , 1]
+cov_ext <- cov_tar * scale_target
+```
+
+Now generate the predictors:
+
+```{r}
+xtar <- matrix(rnorm(n_tar * d), ncol = d) %*%  chol(cov_tar)
+xext <- matrix(rnorm(n_ext * d), ncol = d) %*%  chol(cov_ext)
+```
+
+Now calculate the linear predictors ($X_i^\top \beta$ or $X_i^\top(\beta+\gamma)$): 
+```{r}
+betas <- numeric(d);
+gammas <- 0.05*seq(-10, 10, length = d)
+lp_tar <- drop(xtar %*% betas);
+lp_ext <- drop(xext %*% (betas + gammas))
+```
+
+We will use these linear predictors for each of the families below. 
+
+## `binomial` family
+
+Generate binomial outcomes:
+
+```{r}
+set.seed(1);
+ytar <- 1 * (lp_tar + rlogis(n_tar, scale = pi / sqrt(3)) > 0)
+yext <- 1 * (lp_ext + rlogis(n_ext, scale = pi / sqrt(3)) > 0)
+```
+
+Both of these should give equivalent results to our method using $\lambda = 0$:
+```{r}
+glm(ytar ~ xtar, family = "binomial") %>% coef() 
+glmnet(x = xtar, y = ytar, alpha = 0,  family = "binomial", lambda = 0) %>% coef() %>% drop()
+```
+
+This is the DEGLR method with $\lambda \approx 0$, $\lambda$ very large:
+```{r}
+deglr(xtar = xtar, ytar = ytar, xext = xext, yext = yext, family = "binomial", 
+      standardize = TRUE, 
+      nlambda = 50,
+      lambda.min.ratio = 1e-20,
+      return_only_at = c(1e-16, 1e3),
+      thresh = 1e-7, maxit = 1e5)$beta_hat
+
+```
+
+This should give equivalent results to $\lambda$ very large:
+```{r}
+glm(c(ytar, yext) ~ rbind(xtar, xext), family = "binomial") %>% coef()
+```
+
+
+## `cox` family
+
+We generate time-to-event outcomes with some censoring:
+
+```{r}
+set.seed(1);
+time_ytar <- rexp(n_tar, exp(lp_tar))
+time_yext <- rexp(n_ext, exp(lp_ext))
+cens_ytar <- rexp(n_tar, 0.25 * mean(exp(lp_tar)))
+cens_yext <- rexp(n_ext, 0.25 * mean(exp(lp_tar)))
+ytar = Surv(pmin(time_ytar, cens_ytar), 1*(time_ytar < cens_ytar))
+yext = Surv(pmin(time_yext, cens_yext), 1*(time_yext < cens_yext))
+```
+
+Both of these should give equivalent results to our method using $\lambda = 0$:
+```{r}
+coxph(ytar ~ xtar) %>% coef()
+glmnet(x = xtar, y = ytar, alpha = 0,  family = "cox", lambda = 0) %>% coef() %>% drop()
+```
+
+
+This is the DEGLR method with $\lambda \approx 0$, $\lambda$ very large:
+```{r}
+deglr(xtar = xtar, ytar = ytar, xext = xext, yext = yext, family = "cox", 
+      standardize = TRUE, 
+      nlambda = 50,
+      lambda.min.ratio = 1e-20,
+      return_only_at = c(1e-16, 1e3),
+      thresh = 1e-7, maxit = 1e5)$beta_hat
+
+```
+
+This should give equivalent results to $\lambda$ very large:
+```{r}
+coxph(c(ytar, yext) ~ rbind(xtar, xext)) %>% coef()
+```
+
+```{r}
+if(0) {
+  
+  
+  nfolds = 5;
+  ncvreps = 10;
+  nlambda = 20;
+  lambda.min.ratio = 1e-8;
+  fixed_lambda_seq = NULL
+  L = NULL;
+  standardize = TRUE;
+  thresh = 1e-7;
+  maxit = 1e5
+  
+  foo = cv_deglr(xtar = xtar, 
+                 ytar = ytar, 
+                 yext = yext, 
+                 xext = xext, 
+                 family = family, 
+                 nfolds = nfolds, 
+                 ncvreps = ncvreps, 
+                 nlambda = nlambda)
+  
+  foo$beta_hat
+  sqrt(mean(foo$beta_hat^2))
+  sqrt(mean(coef(glmnet(x = xtar, y = ytar, alpha = 0,  family = family, lambda = 0))^2))
+  foo$lambda_opt
+}
+
+if(0) {
+  foo = deglr(xtar = xtar, ytar = ytar, xext = xext, yext = yext, family = family, lambda = c(0), standardize = TRUE, thresh = 1e-7, maxit = 1e5)
+  lp_aug = c(numeric(n_tar),(cbind(1, xext) %*% foo$gamma_hat))
+  if(family == "binomial") {
+    glm(c(ytar, yext) ~ rbind(xtar, xext) + offset(lp_aug), family = "binomial") %>% coef() %>% print()
+  } else if (family == "cox") {
+    coxph(c(ytar, yext) ~ rbind(xtar, xext) + offset(lp_aug)) %>% coef() %>% print()
+  }
+  foo$beta_hat
+}
+```
+
+
+
+

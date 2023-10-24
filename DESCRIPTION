@@ -1,0 +1,21 @@
+Package: deglr
+Title: Data Enriched Generalized Linear Regression
+Version: 0.0.0.9000
+Authors@R: 
+    c(person(given = "Philip S.", family = "Boonstra", email = "philb@umich.edu", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0001-8545-9133")),
+      person(given = "Pedro", family = "Orozco del Pino", email = "porozco@umich.edu", role = c("aut"))) 
+Description: Code for fitting DEGLR models, including cross-validation for choosing the tuning parameter.
+License: GPL (>= 3)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
+Imports: 
+    glmnet,
+    purrr,
+    survival
+Suggests: 
+    knitr,
+    rmarkdown,
+    tidyverse
+VignetteBuilder: knitr
