@@ -111,7 +111,7 @@ n_ext_subsample = 5000;
 ```
 
 This is the DEGLR method with three values of $\lambda$: $\lambda \approx 0$,
-$\lambda=0.01$, and $\lambda$ very large. The first corresponds to no pooling
+$\lambda=0.01$, and $\lambda=1000$ The first corresponds to no pooling
 across population and essentially separate models estimated for each population,
 the second corresponds to partial pooling, and the last corresponds to full
 pooling with $\gamma=0$.
@@ -143,7 +143,7 @@ glmnet_nopool <-
   drop()
 ```
 
-This should give equivalent results to $\lambda$ very large, i.e. full pooling across populations. 
+This should give nearly equivalent results to $\lambda=1000$, i.e. full pooling across populations. 
 ```{r}
 glm_pool <- 
   glm(c(ytar_bin[1:n_tar_subsample], 
@@ -181,7 +181,7 @@ n_ext_subsample = 1000;
 ```
 
 This is the DEGLR method with three values of $\lambda$: $\lambda \approx 0$,
-$\lambda=0.01$, and $\lambda$ very large. The first corresponds to no pooling
+$\lambda=0.01$, and $\lambda=1000$. The first corresponds to no pooling
 across population and essentially separate models estimated for each population,
 the second corresponds to partial pooling, and the last corresponds to full
 pooling with $\gamma=0$.
@@ -213,7 +213,7 @@ glmnet_nopool <-
   drop()
 ```
 
-This should give equivalent results to $\lambda$ very large, i.e. full pooling across populations. 
+This should give nearly equivalent results to $\lambda=1000$, i.e. full pooling across populations. 
 ```{r}
 glm_pool <- 
   glm(c(ytar_bin[1:n_tar_subsample], 
@@ -262,7 +262,7 @@ n_ext_subsample = 5000;
 ```
 
 This is the DEGLR method with three values of $\lambda$: $\lambda \approx 0$,
-$\lambda=0.01$, and $\lambda$ very large. The first corresponds to no pooling
+$\lambda=0.01$, and $\lambda=1000$ The first corresponds to no pooling
 across population and essentially separate models estimated for each population,
 the second corresponds to partial pooling, and the last corresponds to full
 pooling with $\gamma=0$.
@@ -293,7 +293,7 @@ glmnet_nopool <-
   drop()
 ```
 
-This should give equivalent results to $\lambda$ very large, i.e. full pooling
+This should give nearly equivalent results to $\lambda=1000$, i.e. full pooling
 across populations (note however that we are estimating separate baseline
 hazards using the `strata` argument).
 
@@ -333,7 +333,7 @@ n_ext_subsample = 1000;
 ```
 
 This is the DEGLR method with three values of $\lambda$: $\lambda \approx 0$,
-$\lambda=0.01$, and $\lambda$ very large. The first corresponds to no pooling
+$\lambda=0.01$, and $\lambda=1000$ The first corresponds to no pooling
 across population and essentially separate models estimated for each population,
 the second corresponds to partial pooling, and the last corresponds to full
 pooling with $\gamma=0$.
@@ -364,7 +364,7 @@ glmnet_nopool <-
   drop()
 ```
 
-This should give equivalent results to $\lambda$ very large, i.e. full pooling
+This should give nearly equivalent results to $\lambda=1000$, i.e. full pooling
 across populations (note however that we are estimating separate baseline
 hazards using the `strata` argument).
 
@@ -401,10 +401,8 @@ This simple simulation study empirically shows that the deglr algorithm behaves
 as expected in the simple situations where we want to completely pool the two
 populations or estimate completely separate associations.
 
-As we note above, the one exception to this is that when the outcome is a
-time-to-even, the fully pooled Cox model is not actually fully pooled: separate
-baseline hazards are still estimated. This explains why the point estimates are
-slightly different from each other.
+As we note above, the fully pooled Cox model does not actually fully pool
+the data: separate baseline hazards are always estimated. 
 
 ```{r, echo = FALSE}
 if(0) {
