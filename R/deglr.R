@@ -33,13 +33,13 @@ deglr <- function(xtar,
                   xext,
                   yext,
                   family,
-                  nlambda = 20,
-                  lambda.min.ratio = 1e-8,
+                  nlambda = 50,
+                  lambda.min.ratio = 1e-10,
                   fixed_lambda_seq = NULL,
                   return_only_at = NULL,
                   L = NULL,
                   standardize = TRUE,
-                  thresh = 1e-7,
+                  thresh = 1e-14,
                   maxit = 1e5){
 
   d <- ncol(xtar)
@@ -53,6 +53,7 @@ deglr <- function(xtar,
                  ytar = ytar,
                  xext = xext,
                  yext = yext,
+                 family = family,
                  L = L,
                  standardize = standardize)
   y_aug = foo$y_aug
@@ -70,12 +71,9 @@ deglr <- function(xtar,
                   lambda.min.ratio = lambda.min.ratio,
                   #Note: lambda = NULL is not a typo
                   lambda = NULL,
-                  penalty.factor = c(rep(0, d), rep(1, d + 1)),
+                  penalty.factor = c(rep(0, d), rep(1, d + (family != "cox"))),
                   # Standardization taken care of in parent
-                  standardize = FALSE,
-                  #Note: thresh = 1 is not a typo
-                  thresh = 1,
-                  maxit = maxit)
+                  standardize = FALSE)
 
     # Note that we scale up the max lambda by a factor of 100:
     max_log_lambda = log(100) + log(max(mod$lambda))
@@ -96,7 +94,7 @@ deglr <- function(xtar,
                  family = family,
                  alpha = 0.0,
                  lambda = lambda_seq,
-                 penalty.factor = c(rep(0, d), rep(1, d + 1)),
+                 penalty.factor = c(rep(0, d), rep(1, d + (family != "cox"))),
                  # Standardization taken care of above
                  standardize = FALSE,
                  thresh = thresh,

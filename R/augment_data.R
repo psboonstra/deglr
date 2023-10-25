@@ -16,29 +16,53 @@ augment_data <- function(xtar,
                          ytar,
                          xext,
                          yext,
+                         family,
                          L = NULL,
                          standardize = TRUE){
 
   stopifnot(ncol(xtar) == ncol(xext))
-  if(is.null(L)) {
-    L <- cbind(0, rbind(0, solve(base::chol(crossprod(xtar)))))
-    L[1,1] <- 1
-  }
+  if(family != "cox") {
+    if(is.null(L)) {
+      L <- cbind(0, rbind(0, solve(base::chol(crossprod(xtar)))))
+      L[1,1] <- 1
+    }
 
-  xext_star <- cbind(1, xext) %*% L
+    xext_star <- cbind(1, xext) %*% L
 
-  if (standardize) {
-    xext_star_scale = c(1, glmnet:::weighted_mean_sd(xext_star[,-1])$sd)
+    if (standardize) {
+      xext_star_scale = c(1, glmnet:::weighted_mean_sd(xext_star[,-1])$sd)
+    } else {
+      xext_star_scale = rep(1, ncol(xext_star))
+    }
+
+    xext_star <- scale(xext_star, center = FALSE, scale = xext_star_scale)
+
+    x_aug <- cbind(rbind(xtar, xext),
+                   rbind(matrix(0, nrow = nrow(xtar), ncol = ncol(xtar) + 1), xext_star))
+    y_aug = c(ytar, yext)
+
   } else {
-    xext_star_scale = rep(1, ncol(xext_star))
+    if(is.null(L)) {
+      L <- solve(base::chol(crossprod(xtar)))
+    }
+
+    xext_star <- xext %*% L
+
+    if (standardize) {
+      xext_star_scale = glmnet:::weighted_mean_sd(xext_star)$sd
+    } else {
+      xext_star_scale = rep(1, ncol(xext_star))
+    }
+
+    xext_star <- scale(xext_star, center = FALSE, scale = xext_star_scale)
+
+    x_aug <- cbind(rbind(xtar, xext),
+                   rbind(matrix(0, nrow = nrow(xtar), ncol = ncol(xtar)), xext_star))
+    y_aug = stratifySurv(c(ytar, yext), c(rep(1, length(ytar)), rep(2, length(yext))))
+
   }
 
-  xext_star <- scale(xext_star, center = FALSE, scale = xext_star_scale)
-
-  x_aug <- cbind(rbind(xtar, xext),
-                 rbind(matrix(0, nrow = nrow(xtar), ncol = ncol(xtar) + 1), xext_star))
-
-  return( list(y_aug = c(ytar, yext),
+  return( list(y_aug = y_aug,
                x_aug = x_aug,
                xext_star_scale = xext_star_scale,
                L = L) )

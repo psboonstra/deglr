@@ -39,7 +39,7 @@ cv_deglr <- function(xtar,
                      fixed_lambda_seq = NULL,
                      L = NULL,
                      standardize = TRUE,
-                     thresh = 1e-7,
+                     thresh = 1e-14,
                      maxit = 1e5) {
 
   n_tar <- nrow(xtar)
@@ -60,10 +60,7 @@ cv_deglr <- function(xtar,
                       nlambda = nlambda,
                       lambda.min.ratio = lambda.min.ratio,
                       L = L,
-                      standardize = standardize,
-                      #Note: thresh = 1 is not a typo; we only need lambda_seq
-                      thresh = 1,
-                      maxit = maxit)
+                      standardize = standardize)
     lambda_seq <- mod_full$lambda;
   } else {
     lambda_seq <- fixed_lambda_seq;

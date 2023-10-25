@@ -17,7 +17,8 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-library(deglr)
+#library(deglr)
+devtools::load_all()
 library(glmnet)
 library(survival)
 library(tidyverse)
@@ -29,14 +30,18 @@ library(glue)
 
 Here we set the number of observations from the target and external populations
 as well as the number of predictors. We will draw a large number of observations
-from each but then demonstrate differences in performance with difference sample 
-size ratios. 
+from each but then sub-sample from these large numbers to demonstrate some problems
+with the current algorithm that arise when the ratio of sample sizes is large
+in favor of the external population. 
+
 ```{r}
-n_tar = 5000;
-n_ext = 5000;
-d = 3;
+n_tar = 5000; # size of target population
+n_ext = 5000; # size of external population
+d = 3; # number of predictors
 set.seed(1);
 ```
+
+### Distribution of predictors 
 
 We will generate the predictors from multivariate normal distributions with mean
 zero and covariance matrices sampled from a Wishart distribution. You can increase
@@ -61,6 +66,8 @@ xtar <- matrix(rnorm(n_tar * d), ncol = d) %*%  chol(cov_tar)
 xext <- matrix(rnorm(n_ext * d), ncol = d) %*%  chol(cov_ext)
 ```
 
+### Construct linear predictors
+
 Now calculate the linear predictors ($X_i^\top \beta$ or
 $X_i^\top(\beta+\gamma)$). The true value of $\beta$ is $\beta=0$ (without loss of
 generality because we're not shrinking $\beta$ toward zero), and the true value
@@ -73,6 +80,8 @@ gammas <- 0.5*seq(-1, 1, length = d)
 lp_tar <- drop(xtar %*% betas);
 lp_ext <- drop(xext %*% (betas + gammas))
 ```
+
+### Sample outcomes
 
 We will use these linear predictors to generate binomial and time-to-event outcomes. 
 Here are the binomial outcomes:
@@ -95,14 +104,32 @@ yext_te = Surv(pmin(time_yext, cens_yext), 1*(time_yext < cens_yext))
 ```
 
 
-
 ## binomial outcomes, `n_tar = 50`, `n_ext = 5000`
 
-
-Both of these should give equivalent results to our method using $\lambda = 0$:
 ```{r}
 n_tar_subsample = 50;
 n_ext_subsample = 5000;
+```
+
+This is the DEGLR method with three values of $\lambda$: $\lambda \approx 0$,
+$\lambda=0.01$, and $\lambda$ very large. The first corresponds to no pooling
+across population and essentially separate models estimated for each population,
+the second corresponds to partial pooling, and the last corresponds to full
+pooling with $\gamma=0$.
+
+```{r}
+deglr_mod <- 
+  deglr(xtar = xtar[1:n_tar_subsample,], 
+        ytar = ytar_bin[1:n_tar_subsample], 
+        xext = xext[1:n_ext_subsample,], 
+        yext = yext_bin[1:n_ext_subsample], 
+        family = "binomial", 
+        return_only_at = c(1e-30, 1e-2, 1e3))
+```
+
+Both of the following should give equivalent results to DEGLR using $\lambda = 0$, 
+i.e. no pooling across populations. 
+```{r}
 glm_nopool <- 
   glm(ytar_bin[1:n_tar_subsample] ~ xtar[1:n_tar_subsample,],
       family = "binomial") %>%
@@ -117,28 +144,13 @@ glmnet_nopool <-
   drop()
 ```
 
-This is the DEGLR method with two values of $\lambda$: $\lambda \approx 0$ and $\lambda$ very large:
-```{r}
-deglr_mod <- 
-  deglr(xtar = xtar[1:n_tar_subsample,], 
-        ytar = ytar_bin[1:n_tar_subsample], 
-        xext = xext[1:n_ext_subsample,], 
-        yext = yext_bin[1:n_ext_subsample], 
-        family = "binomial", 
-        standardize = TRUE, 
-        nlambda = 50,
-        lambda.min.ratio = 1e-20,
-        return_only_at = c(1e-20, 1e3),
-        thresh = 1e-7, maxit = 1e5)
-
-```
-
-This should give equivalent results to $\lambda$ very large:
+This should give equivalent results to $\lambda$ very large, i.e. full pooling across populations. 
 ```{r}
 glm_pool <- 
   glm(c(ytar_bin[1:n_tar_subsample], 
-        yext_bin[1:n_ext_subsample]) ~ rbind(xtar[1:n_tar_subsample,], 
-                                             xext[1:n_ext_subsample,]),
+        yext_bin[1:n_ext_subsample]) ~
+        rbind(xtar[1:n_tar_subsample,], 
+              xext[1:n_ext_subsample,]),
       family = "binomial") %>%
   coef()
 ```
@@ -150,12 +162,13 @@ tibble(var_name = names(glmnet_nopool),
        glm_nopool = glm_nopool, 
        glmnet_nopool = glmnet_nopool, 
        deglr_nopool = deglr_mod$beta_hat[,1],
-       deglr_pool = deglr_mod$beta_hat[,2],
+       deglr_partialpool = deglr_mod$beta_hat[,2],
+       deglr_pool = deglr_mod$beta_hat[,3],
        glm_pool = glm_pool) %>%
   kable(caption = glue("Comparison of estimates of $\\beta$ with a binomial outcome, {n_tar_subsample} samples
   from the target population, and {n_ext_subsample} samples from the external
   population. The 'nopool' methods 
-  should be identical to eacho ther, and the 'pool' methods should be identical to
+  should be identical to each other (within convergence tolerance), and the 'pool' methods should be identical to
   each other."))
 ```
 
@@ -163,26 +176,17 @@ tibble(var_name = names(glmnet_nopool),
 
 ## binomial outcomes, `n_tar = 1000`, `n_ext = 1000`
 
-
-Both of these should give equivalent results to our method using $\lambda = 0$:
 ```{r}
 n_tar_subsample = 1000;
 n_ext_subsample = 1000;
-glm_nopool <-
-  glm(ytar_bin[1:n_tar_subsample] ~ xtar[1:n_tar_subsample,], 
-      family = "binomial") %>% 
-  coef() 
-glmnet_nopool <- 
-  glmnet(x = xtar[1:n_tar_subsample,], 
-         y = ytar_bin[1:n_tar_subsample],
-         alpha = 0, 
-         family = "binomial",
-         lambda = 0) %>%
-  coef() %>% 
-  drop()
 ```
 
-This is the DEGLR method with two values of $\lambda$: $\lambda \approx 0$ and $\lambda$ very large:
+This is the DEGLR method with three values of $\lambda$: $\lambda \approx 0$,
+$\lambda=0.01$, and $\lambda$ very large. The first corresponds to no pooling
+across population and essentially separate models estimated for each population,
+the second corresponds to partial pooling, and the last corresponds to full
+pooling with $\gamma=0$.
+
 ```{r}
 deglr_mod <- 
   deglr(xtar = xtar[1:n_tar_subsample,], 
@@ -190,20 +194,34 @@ deglr_mod <-
         xext = xext[1:n_ext_subsample,], 
         yext = yext_bin[1:n_ext_subsample], 
         family = "binomial", 
-        standardize = TRUE, 
-        nlambda = 50,
-        lambda.min.ratio = 1e-20,
-        return_only_at = c(1e-30, 1e3),
-        thresh = 1e-7, maxit = 1e5)
+        return_only_at = c(1e-30, 1e-2, 1e3))
 ```
 
-This should give equivalent results to $\lambda$ very large:
+Both of the following should give equivalent results to DEGLR using $\lambda = 0$, 
+i.e. no pooling across populations. 
+```{r}
+glm_nopool <- 
+  glm(ytar_bin[1:n_tar_subsample] ~ xtar[1:n_tar_subsample,],
+      family = "binomial") %>%
+  coef() 
+glmnet_nopool <- 
+  glmnet(x = xtar[1:n_tar_subsample,], 
+         y = ytar_bin[1:n_tar_subsample], 
+         alpha = 0,  
+         family = "binomial", 
+         lambda = 0) %>%
+  coef() %>% 
+  drop()
+```
+
+This should give equivalent results to $\lambda$ very large, i.e. full pooling across populations. 
 ```{r}
 glm_pool <- 
-  glm(c(ytar_bin[1:n_tar_subsample],
-        yext_bin[1:n_ext_subsample]) ~ rbind(xtar[1:n_tar_subsample,],
-                                             xext[1:n_ext_subsample,]),
-      family = "binomial") %>% 
+  glm(c(ytar_bin[1:n_tar_subsample], 
+        yext_bin[1:n_ext_subsample]) ~
+        rbind(xtar[1:n_tar_subsample,], 
+              xext[1:n_ext_subsample,]),
+      family = "binomial") %>%
   coef()
 ```
 
@@ -214,23 +232,55 @@ tibble(var_name = names(glmnet_nopool),
        glm_nopool = glm_nopool, 
        glmnet_nopool = glmnet_nopool, 
        deglr_nopool = deglr_mod$beta_hat[,1],
-       deglr_pool = deglr_mod$beta_hat[,2],
+       deglr_partialpool = deglr_mod$beta_hat[,2],
+       deglr_pool = deglr_mod$beta_hat[,3],
        glm_pool = glm_pool) %>%
   kable(caption = glue("Comparison of estimates of $\\beta$ with a binomial outcome, {n_tar_subsample} samples
   from the target population, and {n_ext_subsample} samples from the external
   population. The 'nopool' methods 
-  should be identical to eacho ther, and the 'pool' methods should be identical to
+  should be identical to each other (within convergence tolerance), and the 'pool' methods should be identical to
   each other."))
 ```
 
-
-
 ## time-to-event outcomes,  `n_tar = 50`, `n_ext = 5000`
 
-Both of these should give equivalent results to our method using $\lambda = 0$:
+Repeat the same exercise for the time-to-event outcomes. One subtly here is how
+to handle the baseline hazard. The two most obvious options are (i) always fit a
+stratified Cox model to estimate completely separate baseline hazards or (ii)
+fit a proportionality bias term for the baseline hazard in the external data,
+e.g. insert a constant column into the external predictors and estimate the
+corresponding bias term for that predictor.
+
+Both have potential downsides. Option (i) will never fully pool the data: even
+when $\lambda = \inf$, separate baseline hazards will be estimated. Option (ii)
+cannot fit separate models: even when $\lambda = 0$, it is assumed that the
+baseline hazards are proportional to eachother at every time $t$, so that some
+information is shared between the populations. We choose option (i).
+
 ```{r}
 n_tar_subsample = 50;
 n_ext_subsample = 5000;
+```
+
+This is the DEGLR method with three values of $\lambda$: $\lambda \approx 0$,
+$\lambda=0.01$, and $\lambda$ very large. The first corresponds to no pooling
+across population and essentially separate models estimated for each population,
+the second corresponds to partial pooling, and the last corresponds to full
+pooling with $\gamma=0$.
+
+```{r}
+deglr_mod <- 
+  deglr(xtar = xtar[1:n_tar_subsample,], 
+        ytar = ytar_te[1:n_tar_subsample], 
+        xext = xext[1:n_ext_subsample,], 
+        yext = yext_te[1:n_ext_subsample], 
+        family = "cox", 
+        return_only_at = c(1e-30, 1e-2, 1e3))
+```
+
+Both of the following should give equivalent results to DEGLR using $\lambda = 0$, 
+i.e. no pooling across populations. 
+```{r}
 coxph_nopool <- 
   coxph(ytar_te[1:n_tar_subsample] ~ xtar[1:n_tar_subsample,]) %>%
   coef()
@@ -244,29 +294,17 @@ glmnet_nopool <-
   drop()
 ```
 
+This should give equivalent results to $\lambda$ very large, i.e. full pooling
+across populations (note however that we are estimating separate baseline
+hazards using the `strata` argument).
 
-This is the DEGLR method with two values of $\lambda$: $\lambda \approx 0$ and $\lambda$ very large:
-```{r}
-deglr_mod <- 
-  deglr(xtar = xtar[1:n_tar_subsample,], 
-        ytar = ytar_te[1:n_tar_subsample], 
-        xext = xext[1:n_ext_subsample,], 
-        yext = yext_te[1:n_ext_subsample], 
-        family = "cox", 
-        standardize = TRUE, 
-        nlambda = 50,
-        lambda.min.ratio = 1e-20,
-        return_only_at = c(1e-30, 1e3),
-        thresh = 1e-7, maxit = 1e5)
-
-```
-
-This should give equivalent results to $\lambda$ very large:
 ```{r}
 coxph_pool <- 
   coxph(c(ytar_te[1:n_tar_subsample], 
-          yext_te[1:n_ext_subsample]) ~ rbind(xtar[1:n_tar_subsample,], 
-                                              xext[1:n_ext_subsample,])) %>% 
+          yext_te[1:n_ext_subsample]) ~ 
+          rbind(xtar[1:n_tar_subsample,], 
+                xext[1:n_ext_subsample,]) + 
+          strata(c(rep(1, n_tar_subsample), rep(2, n_ext_subsample)))) %>% 
   coef()
 ```
 
@@ -277,24 +315,45 @@ tibble(var_name = names(glmnet_nopool),
        coxph_nopool = coxph_nopool, 
        glmnet_nopool = glmnet_nopool, 
        deglr_nopool = deglr_mod$beta_hat[,1],
-       deglr_pool = deglr_mod$beta_hat[,2],
+       deglr_partialpool = deglr_mod$beta_hat[,2],
+       deglr_pool = deglr_mod$beta_hat[,3],
        coxph_pool = coxph_pool) %>%
   kable(caption = glue("Comparison of estimates of $\\beta$ with a time-to-event outcome, {n_tar_subsample} samples
   from the target population, and {n_ext_subsample} samples from the external
   population. The 'nopool' methods 
-  should be identical to eacho ther, and the 'pool' methods should be identical to
+  should be identical to each other (within convergence tolerance), the 'pool' methods should be identical to
   each other."))
 ```
 
 
 ## time-to-event outcomes,  `n_tar = 1000`, `n_ext = 1000`
 
-Both of these should give equivalent results to our method using $\lambda = 0$:
 ```{r}
 n_tar_subsample = 1000;
 n_ext_subsample = 1000;
+```
+
+This is the DEGLR method with three values of $\lambda$: $\lambda \approx 0$,
+$\lambda=0.01$, and $\lambda$ very large. The first corresponds to no pooling
+across population and essentially separate models estimated for each population,
+the second corresponds to partial pooling, and the last corresponds to full
+pooling with $\gamma=0$.
+
+```{r}
+deglr_mod <- 
+  deglr(xtar = xtar[1:n_tar_subsample,], 
+        ytar = ytar_te[1:n_tar_subsample], 
+        xext = xext[1:n_ext_subsample,], 
+        yext = yext_te[1:n_ext_subsample], 
+        family = "cox", 
+        return_only_at = c(1e-30, 1e-2, 1e3))
+```
+
+Both of the following should give equivalent results to DEGLR using $\lambda = 0$, 
+i.e. no pooling across populations. 
+```{r}
 coxph_nopool <- 
-  coxph(ytar_te[1:n_tar_subsample] ~ xtar[1:n_tar_subsample,]) %>% 
+  coxph(ytar_te[1:n_tar_subsample] ~ xtar[1:n_tar_subsample,]) %>%
   coef()
 glmnet_nopool <- 
   glmnet(x = xtar[1:n_tar_subsample,], 
@@ -306,32 +365,19 @@ glmnet_nopool <-
   drop()
 ```
 
+This should give equivalent results to $\lambda$ very large, i.e. full pooling
+across populations (note however that we are estimating separate baseline
+hazards using the `strata` argument).
 
-This is the DEGLR method with two values of $\lambda$: $\lambda \approx 0$ and $\lambda$ very large:
-```{r}
-deglr_mod <- 
-  deglr(xtar = xtar[1:n_tar_subsample,], 
-        ytar = ytar_te[1:n_tar_subsample], 
-        xext = xext[1:n_ext_subsample,], 
-        yext = yext_te[1:n_ext_subsample], 
-        family = "cox", 
-        standardize = TRUE, 
-        nlambda = 50,
-        lambda.min.ratio = 1e-20,
-        return_only_at = c(1e-30, 1e3),
-        thresh = 1e-7, maxit = 1e5)
-
-```
-
-This should give equivalent results to $\lambda$ very large:
 ```{r}
 coxph_pool <- 
-  coxph(c(ytar_te[1:n_tar_subsample],
-          yext_te[1:n_ext_subsample]) ~ rbind(xtar[1:n_tar_subsample,], 
-                                              xext[1:n_ext_subsample,])) %>%
+  coxph(c(ytar_te[1:n_tar_subsample], 
+          yext_te[1:n_ext_subsample]) ~ 
+          rbind(xtar[1:n_tar_subsample,], 
+                xext[1:n_ext_subsample,]) + 
+          strata(c(rep(1, n_tar_subsample), rep(2, n_ext_subsample)))) %>% 
   coef()
 ```
-
 
 ```{r, echo = FALSE}
 tibble(var_name = names(glmnet_nopool), 
@@ -339,25 +385,27 @@ tibble(var_name = names(glmnet_nopool),
        coxph_nopool = coxph_nopool, 
        glmnet_nopool = glmnet_nopool, 
        deglr_nopool = deglr_mod$beta_hat[,1],
-       deglr_pool = deglr_mod$beta_hat[,2],
+       deglr_partialpool = deglr_mod$beta_hat[,2],
+       deglr_pool = deglr_mod$beta_hat[,3],
        coxph_pool = coxph_pool) %>%
   kable(caption = glue("Comparison of estimates of $\\beta$ with a time-to-event outcome, {n_tar_subsample} samples
   from the target population, and {n_ext_subsample} samples from the external
   population. The 'nopool' methods 
-  should be identical to eacho ther, and the 'pool' methods should be identical to
+  should be identical to each other (within convergence tolerance), and the 'pool' methods should be identical to
   each other."))
 ```
 
+
 ## Summary
 
-When the sample size ratio is large in favor of the external population, the DELGR
-algorithm doesn't give the right answer when $\lambda\approx 0$, particularly
-so for time-to-event outcomes. I think this must be because
-the observations from the external population are dominating the log-likelihood
-and so small changes in beta don't matter as much. 
+This simple simulation study empirically shows that the deglr algorithm behaves
+as expected in the simple situations where we want to completely pool the two
+populations or estimate completely separate associations.
 
-Changing the convergence threshold (`thresh` in `glmnet`) doesn't seem to have an
-impact. 
+As we note above, the one exception to this is that when the outcome is a
+time-to-even, the fully pooled Cox model is not actually fully pooled: separate
+baseline hazards are still estimated. This explains why the point estimates are
+slightly different from each other.
 
 ```{r, echo = FALSE}
 if(0) {
@@ -389,12 +437,14 @@ if(0) {
 }
 
 if(0) {
-  foo = deglr(xtar = xtar, ytar = ytar_te, xext = xext, yext = yext_te, family = family, lambda = c(0), standardize = TRUE, thresh = 1e-7, maxit = 1e5)
-  lp_aug = c(numeric(n_tar),(cbind(1, xext) %*% foo$gamma_hat))
+  
+  lp_aug = c(numeric(n_tar_subsample),(cbind(1, xext[1:n_ext_subsample,]) %*% foo$gamma_hat[,1]))
   if(family == "binomial") {
     glm(c(ytar_bin, yext_bin) ~ rbind(xtar, xext) + offset(lp_aug), family = "binomial") %>% coef() %>% print()
   } else if (family == "cox") {
-    coxph(c(ytar_te, yext_te) ~ rbind(xtar, xext) + offset(lp_aug)) %>% coef() %>% print()
+    coxph(c(ytar_te[1:n_tar_subsample,], 
+            yext_te[1:n_ext_subsample,]) ~ rbind(xtar[1:n_tar_subsample,], 
+                                                 xext[1:n_ext_subsample,]) + offset(lp_aug)) %>% coef() %>% print()
   }
   foo$beta_hat
 }
