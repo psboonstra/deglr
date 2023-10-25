@@ -15,6 +15,7 @@ Imports:
     purrr,
     survival
 Suggests: 
+    glue,
     knitr,
     rmarkdown,
     tidyverse

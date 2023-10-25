@@ -9,10 +9,10 @@
 #'   sequence of lambdas will always be exactly this long
 #' @param lambda.min.ratio See glmnet::glmnet()
 #' @param fixed_lambda_seq User can provide a fixed sequence of lambdas instead
-#'   of an automaticaly constructed sequence. If provided, this will override
-#'   nlambda and lambda.min.ratio
+#'   of an automatically constructed sequence. If provided, this will override
+#'   `nlambda` and `lambda.min.ratio`
 #' @param return_only_at A vector of lambdas that may or may not have overlap
-#'   with fixed_lambda_seq. This argument allows the user to separately indicate
+#'   with `fixed_lambda_seq.` This argument allows the user to separately indicate
 #'   that they only want results returned corresponding to specific values of
 #'   lambda.
 #' @param L Square matrix that scales the bias parameter gamma. The default
