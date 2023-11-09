@@ -18,6 +18,7 @@ knitr::opts_chunk$set(
 
 ```{r setup}
 library(deglr)
+#devtools::load_all()
 library(glmnet)
 library(survival)
 library(tidyverse)
@@ -36,7 +37,7 @@ in favor of the external population.
 ```{r}
 n_tar = 5000; # size of target population
 n_ext = 5000; # size of external population
-d = 3; # number of predictors
+d = 25; # number of predictors
 set.seed(1);
 ```
 
@@ -75,7 +76,8 @@ value $c$. The true intercept is 0 for both the target and the external
 populations, i.e. there is no actual bias in the intercept.
 ```{r}
 betas <- numeric(d);
-gammas <- 0.5*seq(-1, 1, length = d)
+gammas_norm <- 0.5;
+gammas <- gammas_norm * (2 * rbinom(d, 1, 0.5) - 1) / sqrt(d)
 lp_tar <- drop(xtar %*% betas);
 lp_ext <- drop(xext %*% (betas + gammas))
 ```
@@ -103,10 +105,10 @@ yext_te = Surv(pmin(time_yext, cens_yext), 1*(time_yext < cens_yext))
 ```
 
 
-## binomial outcomes, `n_tar = 50`, `n_ext = 5000`
+## binomial outcomes, `n_tar = 100`, `n_ext = 5000`
 
 ```{r}
-n_tar_subsample = 50;
+n_tar_subsample = 100;
 n_ext_subsample = 5000;
 ```
 
@@ -241,7 +243,7 @@ tibble(var_name = names(glmnet_nopool),
   each other."))
 ```
 
-## time-to-event outcomes,  `n_tar = 50`, `n_ext = 5000`
+## time-to-event outcomes,  `n_tar = 100`, `n_ext = 5000`
 
 Repeat the same exercise for the time-to-event outcomes. One subtly here is how
 to handle the baseline hazard. The two most obvious options are (i) always fit a
@@ -257,7 +259,7 @@ baseline hazards are proportional to eachother at every time $t$, so that some
 information is shared between the populations. We choose option (i).
 
 ```{r}
-n_tar_subsample = 50;
+n_tar_subsample = 100;
 n_ext_subsample = 5000;
 ```
 
@@ -408,29 +410,34 @@ the data: separate baseline hazards are always estimated.
 if(0) {
   
   
-  nfolds = 5;
-  ncvreps = 10;
-  nlambda = 20;
-  lambda.min.ratio = 1e-8;
-  fixed_lambda_seq = NULL
-  L = NULL;
-  standardize = TRUE;
-  thresh = 1e-7;
-  maxit = 1e5
+  n_tar_subsample = 100;
+  n_ext_subsample = 1000;
   
-  foo = cv_deglr(xtar = xtar, 
-                 ytar = ytar_te, 
-                 xext = xext, 
-                 yext = yext_te, 
-                 family = family, 
-                 nfolds = nfolds, 
-                 ncvreps = ncvreps, 
-                 nlambda = nlambda)
+  foo <- cv_deglr(xtar = xtar[1:n_tar_subsample,], 
+                  ytar = ytar_bin[1:n_tar_subsample], 
+                  xext = xext[1:n_ext_subsample,], 
+                  yext = yext_bin[1:n_ext_subsample], 
+                  family = "binomial", 
+                  alpha = 0.0,
+                  nfolds = 5, 
+                  ncvreps = 7)
   
   foo$beta_hat
   sqrt(mean(foo$beta_hat^2))
   sqrt(mean(coef(glmnet(x = xtar, y = ytar_te, alpha = 0,  family = family, lambda = 0))^2))
   foo$lambda_opt
+  
+  
+  foo2 <- glmtrans(target = list(x = xtar[1:n_tar_subsample,], 
+                                 y = ytar_bin[1:n_tar_subsample]), 
+                   source = list(list(x = xext[1:50,], 
+                                      y = yext_bin[1:50]),
+                                 list(x = xext[100:132,], 
+                                      y = yext_bin[100:132])), 
+                   family = "binomial",
+                   transfer.source.id = "all",
+                   alpha = 0.0)
+  
 }
 
 if(0) {
