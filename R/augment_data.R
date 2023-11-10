@@ -4,10 +4,13 @@
 #' @param ytar Outcome vector from the target population
 #' @param xext Predictor matrix from the external population
 #' @param yext Outcome vector from the external population
+#' @param family One of 'gaussian', 'binomial', or 'cox'
 #' @param L Square matrix that scales the bias parameter gamma. The default
 #'   value is to use inverse of the cholesky decomposition of crossprod(xtar)
 #' @param standardize If TRUE, then xext will be standardized but only in the
 #'   part of the augmented data matrix corresponding to gamma.
+#'
+#' @importFrom glmnet stratifySurv
 #'
 #' @return A named list to be used by deglr
 #'
@@ -20,12 +23,11 @@ augment_data <- function(xtar,
                          L = NULL,
                          standardize = TRUE){
 
-  stopifnot(ncol(xtar) == ncol(xext))
+  if(is.null(L)) {
+    L <- make_L(xtar, family)
+  }
+
   if(family != "cox") {
-    if(is.null(L)) {
-      L <- cbind(0, rbind(0, solve(base::chol(crossprod(xtar)))))
-      L[1,1] <- 1
-    }
 
     xext_star <- cbind(1, xext) %*% L
 
@@ -42,9 +44,6 @@ augment_data <- function(xtar,
     y_aug = c(ytar, yext)
 
   } else {
-    if(is.null(L)) {
-      L <- solve(base::chol(crossprod(xtar)))
-    }
 
     xext_star <- xext %*% L
 

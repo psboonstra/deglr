@@ -4,7 +4,7 @@
 \alias{augment_data}
 \title{Internal helper function for reformatting external and target data}
 \usage{
-augment_data(xtar, ytar, xext, yext, L = NULL, standardize = TRUE)
+augment_data(xtar, ytar, xext, yext, family, L = NULL, standardize = TRUE)
 }
 \arguments{
 \item{xtar}{Predictor matrix from the target population}
@@ -14,6 +14,8 @@ augment_data(xtar, ytar, xext, yext, L = NULL, standardize = TRUE)
 \item{xext}{Predictor matrix from the external population}
 
 \item{yext}{Outcome vector from the external population}
+
+\item{family}{One of 'gaussian', 'binomial', or 'cox'}
 
 \item{L}{Square matrix that scales the bias parameter gamma. The default
 value is to use inverse of the cholesky decomposition of crossprod(xtar)}

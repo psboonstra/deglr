@@ -10,13 +10,14 @@ deglr(
   xext,
   yext,
   family,
-  nlambda = 20,
-  lambda.min.ratio = 1e-08,
+  alpha = 0,
+  nlambda = 50,
+  lambda.min.ratio = ifelse(nrow(xtar) < d/2, 1e-04, 1e-08),
   fixed_lambda_seq = NULL,
   return_only_at = NULL,
   L = NULL,
   standardize = TRUE,
-  thresh = 1e-07,
+  thresh = 1e-14,
   maxit = 1e+05
 )
 }
@@ -31,17 +32,19 @@ deglr(
 
 \item{family}{One of 'gaussian', 'binomial', or 'cox'}
 
+\item{alpha}{See \code{glmnet::cv.glmnet()}}
+
 \item{nlambda}{See glmnet::glmnet() but note that in contrast to glmnet() the
 sequence of lambdas will always be exactly this long}
 
 \item{lambda.min.ratio}{See glmnet::glmnet()}
 
 \item{fixed_lambda_seq}{User can provide a fixed sequence of lambdas instead
-of an automaticaly constructed sequence. If provided, this will override
-nlambda and lambda.min.ratio}
+of an automatically constructed sequence. If provided, this will override
+\code{nlambda} and \code{lambda.min.ratio}}
 
 \item{return_only_at}{A vector of lambdas that may or may not have overlap
-with fixed_lambda_seq. This argument allows the user to separately indicate
+with \code{fixed_lambda_seq.} This argument allows the user to separately indicate
 that they only want results returned corresponding to specific values of
 lambda.}
 

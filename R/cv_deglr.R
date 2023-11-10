@@ -5,6 +5,7 @@
 #' @param xext Predictor matrix from the external population
 #' @param yext Outcome vector from the external population
 #' @param family One of 'gaussian', 'binomial', or 'cox'
+#' @param alpha See `glmnet::cv.glmnet()`
 #' @param nfolds See `glmnet::cv.glmnet()`
 #' @param ncvreps Number of partitions to create. Choosing > 1 improves
 #'   stability of selection but takes longer
@@ -45,13 +46,20 @@ cv_deglr <- function(xtar,
 
   n_tar <- nrow(xtar)
   n_ext <- nrow(xext)
-
-  if(is.null(L)){
-    L <- solve(base::chol(crossprod(cbind(1, xtar))))
+  if(ncol(xtar) != ncol(xext)) {
+    stop("'xtar' and 'xext' must have same numbers of columns")
   }
+
   if(!family %in% c("gaussian", "binomial", "cox")) {
     stop("'family' must be one of 'gaussian', 'binomial', or 'cox'")
   }
+
+  if(is.null(L)) {
+    L <- make_L(xtar, family)
+  } else if(any(dim(L) != (ncol(xtar) + (family != "cox")))) {
+    stop("'L' must be a square matrix with dimension equal to the number of columns in 'xtar' and 'xext' plus 1 (if 'family' is not 'cox') or plus 0 (if 'family' is 'cox')")
+  }
+
   if(is.null(fixed_lambda_seq)) {
     mod_full <- deglr(xtar = xtar,
                       ytar = ytar,

@@ -5,6 +5,7 @@
 #' @param xext Predictor matrix from the external population
 #' @param yext Outcome vector from the external population
 #' @param family One of 'gaussian', 'binomial', or 'cox'
+#' @param alpha See `glmnet::cv.glmnet()`
 #' @param nlambda See glmnet::glmnet() but note that in contrast to glmnet() the
 #'   sequence of lambdas will always be exactly this long
 #' @param lambda.min.ratio See glmnet::glmnet()
@@ -28,6 +29,7 @@
 #' @export
 #'
 #' @examples
+
 deglr <- function(xtar,
                   ytar,
                   xext,
@@ -45,8 +47,18 @@ deglr <- function(xtar,
 
   d <- ncol(xtar)
   beta_index <- 1:(d + I(family != "cox"))
+  if(ncol(xtar) != ncol(xext)) {
+    stop("'xtar' and 'xext' must have same numbers of columns")
+  }
+
   if(!family %in% c("gaussian", "binomial", "cox")) {
     stop("'family' must be one of 'gaussian', 'binomial', or 'cox'")
+  }
+
+  if(is.null(L)) {
+    L <- make_L(xtar, family)
+  } else if(any(dim(L) != (ncol(xtar) + (family != "cox")))) {
+    stop("'L' must be a square matrix with dimension equal to the number of columns in 'xtar' and 'xext' plus 1 (if 'family' is not 'cox') or plus 0 (if 'family' is 'cox')")
   }
 
   foo <-
@@ -59,7 +71,6 @@ deglr <- function(xtar,
                  standardize = standardize)
   y_aug = foo$y_aug
   x_aug = foo$x_aug
-  L = foo$L
   xext_star_scale = foo$xext_star_scale
 
   if(is.null(fixed_lambda_seq)) {

@@ -10,6 +10,7 @@ cv_deglr(
   xext,
   yext,
   family,
+  alpha = 0,
   nfolds = 5,
   ncvreps = 2,
   nlambda = 20,
@@ -17,7 +18,7 @@ cv_deglr(
   fixed_lambda_seq = NULL,
   L = NULL,
   standardize = TRUE,
-  thresh = 1e-07,
+  thresh = 1e-14,
   maxit = 1e+05
 )
 }
@@ -31,6 +32,8 @@ cv_deglr(
 \item{yext}{Outcome vector from the external population}
 
 \item{family}{One of 'gaussian', 'binomial', or 'cox'}
+
+\item{alpha}{See \code{glmnet::cv.glmnet()}}
 
 \item{nfolds}{See \code{glmnet::cv.glmnet()}}
 
