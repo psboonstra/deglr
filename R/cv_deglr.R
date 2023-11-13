@@ -12,11 +12,12 @@
 #' @param nlambda See `glmnet::glmnet()` but note that in contrast to glmnet() the
 #'   sequence of lambdas will always be exactly this long
 #' @param lambda.min.ratio See `glmnet::glmnet()`
-#' @param fixed_lambda_seq User can provide a fixed sequence of lambdas instead
+#' @param lambda User can provide a fixed sequence of lambdas instead
 #'   of an automaticaly constructed sequence. If provided, this will override
 #'   `nlambda` and `lambda.min.ratio`
-#' @param L Square matrix that scales the bias parameter gamma. The default
-#'   value is to use inverse of the cholesky decomposition of `crossprod(xtar)`
+#' @param L Square matrix that scales the bias parameter gamma. If `NULL`, then
+#'   the `make_L()` function will be called to set `L` as the cholesky
+#'   decomposition of `crossprod(xtar)`
 #' @param standardize If TRUE, then `xext` will be standardized but only in the
 #'   part of the augmented data matrix corresponding to gamma.
 #' @param thresh See glmnet::glmnet()
@@ -37,8 +38,8 @@ cv_deglr <- function(xtar,
                      nfolds = 5,
                      ncvreps = 2,
                      nlambda = 20,
-                     lambda.min.ratio = 1e-8,
-                     fixed_lambda_seq = NULL,
+                     lambda.min.ratio = ifelse(nrow(xtar) < d/2, 1e-3, 1e-6),
+                     lambda = NULL,
                      L = NULL,
                      standardize = TRUE,
                      thresh = 1e-14,
@@ -60,7 +61,7 @@ cv_deglr <- function(xtar,
     stop("'L' must be a square matrix with dimension equal to the number of columns in 'xtar' and 'xext' plus 1 (if 'family' is not 'cox') or plus 0 (if 'family' is 'cox')")
   }
 
-  if(is.null(fixed_lambda_seq)) {
+  if(is.null(lambda)) {
     mod_full <- deglr(xtar = xtar,
                       ytar = ytar,
                       xext = xext,
@@ -69,11 +70,13 @@ cv_deglr <- function(xtar,
                       alpha = alpha,
                       nlambda = nlambda,
                       lambda.min.ratio = lambda.min.ratio,
+                      lambda = NULL,
+                      return_what = "lambda_seq",
                       L = L,
                       standardize = standardize)
     lambda_seq <- mod_full$lambda;
   } else {
-    lambda_seq <- fixed_lambda_seq;
+    lambda_seq <- lambda;
   }
 
   n_tar.k <- floor(n_tar / nfolds) * nfolds
@@ -90,7 +93,7 @@ cv_deglr <- function(xtar,
                       yext = yext[i.e],
                       family = family,
                       alpha = alpha,
-                      fixed_lambda_seq = lambda_seq,
+                      lambda = lambda_seq,
                       L = L,
                       standardize = standardize,
                       thresh = thresh,
@@ -129,8 +132,8 @@ cv_deglr <- function(xtar,
                     yext = yext,
                     family = family,
                     alpha = alpha,
-                    fixed_lambda_seq = lambda_seq,
-                    return_only_at = lambda_opt,
+                    lambda = lambda_seq,
+                    return_what = lambda_opt,
                     L = L,
                     standardize = standardize,
                     thresh = thresh,

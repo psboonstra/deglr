@@ -14,11 +14,12 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
+options(digits = 4)
 ```
 
 ```{r setup}
-library(deglr)
-#devtools::load_all()
+#library(deglr)
+devtools::load_all()
 library(glmnet)
 library(survival)
 library(tidyverse)
@@ -35,8 +36,8 @@ with the current algorithm that arise when the ratio of sample sizes is large
 in favor of the external population. 
 
 ```{r}
-n_tar = 5000; # size of target population
-n_ext = 5000; # size of external population
+n_tar = 5e3; # size of target population
+n_ext = 5e3; # size of external population
 d = 25; # number of predictors
 set.seed(1);
 ```
@@ -125,7 +126,7 @@ deglr_mod <-
         xext = xext[1:n_ext_subsample,], 
         yext = yext_bin[1:n_ext_subsample], 
         family = "binomial", 
-        return_only_at = c(1e-30, 1e-2, 1e3))
+        return_what = c(1e-30,  1e3))
 ```
 
 Both of the following should give equivalent results to DEGLR using $\lambda = 0$, 
@@ -163,8 +164,7 @@ tibble(var_name = names(glmnet_nopool),
        glm_nopool = glm_nopool, 
        glmnet_nopool = glmnet_nopool, 
        deglr_nopool = deglr_mod$beta_hat[,1],
-       deglr_partialpool = deglr_mod$beta_hat[,2],
-       deglr_pool = deglr_mod$beta_hat[,3],
+       deglr_pool = deglr_mod$beta_hat[,2],
        glm_pool = glm_pool) %>%
   kable(caption = glue("Comparison of estimates of $\\beta$ with a binomial outcome, {n_tar_subsample} samples
   from the target population, and {n_ext_subsample} samples from the external
@@ -195,7 +195,7 @@ deglr_mod <-
         xext = xext[1:n_ext_subsample,], 
         yext = yext_bin[1:n_ext_subsample], 
         family = "binomial", 
-        return_only_at = c(1e-30, 1e-2, 1e3))
+        return_what = c(1e-30,  1e3))
 ```
 
 Both of the following should give equivalent results to DEGLR using $\lambda = 0$, 
@@ -233,8 +233,7 @@ tibble(var_name = names(glmnet_nopool),
        glm_nopool = glm_nopool, 
        glmnet_nopool = glmnet_nopool, 
        deglr_nopool = deglr_mod$beta_hat[,1],
-       deglr_partialpool = deglr_mod$beta_hat[,2],
-       deglr_pool = deglr_mod$beta_hat[,3],
+       deglr_pool = deglr_mod$beta_hat[,2],
        glm_pool = glm_pool) %>%
   kable(caption = glue("Comparison of estimates of $\\beta$ with a binomial outcome, {n_tar_subsample} samples
   from the target population, and {n_ext_subsample} samples from the external
@@ -276,7 +275,7 @@ deglr_mod <-
         xext = xext[1:n_ext_subsample,], 
         yext = yext_te[1:n_ext_subsample], 
         family = "cox", 
-        return_only_at = c(1e-30, 1e-2, 1e3))
+        return_what = c(1e-30,  1e3))
 ```
 
 Both of the following should give equivalent results to DEGLR using $\lambda = 0$, 
@@ -316,8 +315,7 @@ tibble(var_name = names(glmnet_nopool),
        coxph_nopool = coxph_nopool, 
        glmnet_nopool = glmnet_nopool, 
        deglr_nopool = deglr_mod$beta_hat[,1],
-       deglr_partialpool = deglr_mod$beta_hat[,2],
-       deglr_pool = deglr_mod$beta_hat[,3],
+       deglr_pool = deglr_mod$beta_hat[,2],
        coxph_pool = coxph_pool) %>%
   kable(caption = glue("Comparison of estimates of $\\beta$ with a time-to-event outcome, {n_tar_subsample} samples
   from the target population, and {n_ext_subsample} samples from the external
@@ -347,7 +345,7 @@ deglr_mod <-
         xext = xext[1:n_ext_subsample,], 
         yext = yext_te[1:n_ext_subsample], 
         family = "cox", 
-        return_only_at = c(1e-30, 1e-2, 1e3))
+        return_what = c(1e-30,  1e3))
 ```
 
 Both of the following should give equivalent results to DEGLR using $\lambda = 0$, 
@@ -386,14 +384,85 @@ tibble(var_name = names(glmnet_nopool),
        coxph_nopool = coxph_nopool, 
        glmnet_nopool = glmnet_nopool, 
        deglr_nopool = deglr_mod$beta_hat[,1],
-       deglr_partialpool = deglr_mod$beta_hat[,2],
-       deglr_pool = deglr_mod$beta_hat[,3],
+       deglr_pool = deglr_mod$beta_hat[,2],
        coxph_pool = coxph_pool) %>%
   kable(caption = glue("Comparison of estimates of $\\beta$ with a time-to-event outcome, {n_tar_subsample} samples
   from the target population, and {n_ext_subsample} samples from the external
   population. The 'nopool' methods 
   should be identical to each other (within convergence tolerance), and the 'pool' methods should be identical to
   each other."))
+```
+
+
+## Tuning parameter selection by cross-validation
+
+We provide a function `cv_deglr` that allows for selecting the among of pooling
+via cross-validation. We demonstrate here using the binomial-outcome data
+generated above. In the first example, we consider 100 observations from the
+target population and 5000 from the external. Intuitively, we would expect a
+considerable amount of pooling due to the small sample size in the target
+population and large number of predictors. The `ncvreps` argument allows for
+creating multiple partitions, to smooth over noise arising from any single one:
+
+```{r cv1, cache = TRUE}
+
+n_tar_subsample = 100;
+n_ext_subsample = 5000;
+
+model_select <- cv_deglr(xtar = xtar[1:n_tar_subsample,], 
+                         ytar = ytar_bin[1:n_tar_subsample], 
+                         xext = xext[1:n_ext_subsample,], 
+                         yext = yext_bin[1:n_ext_subsample], 
+                         family = "binomial", 
+                         alpha = 0.0,
+                         nfolds = 5, 
+                         ncvreps = 5)
+plot(log(model_select$lambda_seq), model_select$neg_log_likelihood)
+abline(v = log(model_select$lambda_opt))
+```
+
+We can compare the RMSE in estimation against a model that ignores the external
+data (remember that the true value of $\beta$ is zero, so the RMSE is just the
+rooted average of the squared coefficient estimates). 
+
+
+```{r}
+# Pooled model:
+sqrt(mean(model_select$beta_hat^2))
+# Base model
+sqrt(mean(coef(glm(ytar_bin[1:n_tar_subsample] ~ xtar[1:n_tar_subsample,], family = "binomial"))^2))
+```
+
+Now, consider 1000 observations from each. We would expect less pooling as there
+is more information in the target sample. 
+
+```{r cv2, cache = TRUE}
+
+n_tar_subsample = 1000;
+n_ext_subsample = 1000;
+
+model_select <- cv_deglr(xtar = xtar[1:n_tar_subsample,], 
+                         ytar = ytar_bin[1:n_tar_subsample], 
+                         xext = xext[1:n_ext_subsample,], 
+                         yext = yext_bin[1:n_ext_subsample], 
+                         family = "binomial", 
+                         alpha = 0.0,
+                         nfolds = 5, 
+                         ncvreps = 5)
+plot(log(model_select$lambda_seq), model_select$neg_log_likelihood)
+abline(v = log(model_select$lambda_opt))
+```
+
+We can compare the RMSE in estimation against a model that ignores the external
+data (remember that the true value of $\beta$ is zero, so the RMSE is just the
+rooted average of the squared coefficient estimates). 
+
+
+```{r}
+# Pooled model:
+sqrt(mean(model_select$beta_hat^2))
+# Base model
+sqrt(mean(coef(glm(ytar_bin[1:n_tar_subsample] ~ xtar[1:n_tar_subsample,], family = "binomial"))^2))
 ```
 
 
@@ -408,23 +477,11 @@ the data: separate baseline hazards are always estimated.
 
 ```{r, echo = FALSE}
 if(0) {
-  
-  
-  n_tar_subsample = 100;
-  n_ext_subsample = 1000;
-  
-  foo <- cv_deglr(xtar = xtar[1:n_tar_subsample,], 
-                  ytar = ytar_bin[1:n_tar_subsample], 
-                  xext = xext[1:n_ext_subsample,], 
-                  yext = yext_bin[1:n_ext_subsample], 
-                  family = "binomial", 
-                  alpha = 0.0,
-                  nfolds = 5, 
-                  ncvreps = 7)
+
   
   foo$beta_hat
-  sqrt(mean(foo$beta_hat^2))
-  sqrt(mean(coef(glmnet(x = xtar, y = ytar_te, alpha = 0,  family = family, lambda = 0))^2))
+  
+  sqrt(mean(coef(glmnet(x = xtar[1:n_tar_subsample,], y = ytar_bin[1:n_tar_subsample], alpha = 0,  family = "binomial", lambda = 0))^2))
   foo$lambda_opt
   
   

@@ -14,8 +14,8 @@ cv_deglr(
   nfolds = 5,
   ncvreps = 2,
   nlambda = 20,
-  lambda.min.ratio = 1e-08,
-  fixed_lambda_seq = NULL,
+  lambda.min.ratio = ifelse(nrow(xtar) < d/2, 0.001, 1e-06),
+  lambda = NULL,
   L = NULL,
   standardize = TRUE,
   thresh = 1e-14,
@@ -45,12 +45,13 @@ sequence of lambdas will always be exactly this long}
 
 \item{lambda.min.ratio}{See \code{glmnet::glmnet()}}
 
-\item{fixed_lambda_seq}{User can provide a fixed sequence of lambdas instead
+\item{lambda}{User can provide a fixed sequence of lambdas instead
 of an automaticaly constructed sequence. If provided, this will override
 \code{nlambda} and \code{lambda.min.ratio}}
 
-\item{L}{Square matrix that scales the bias parameter gamma. The default
-value is to use inverse of the cholesky decomposition of \code{crossprod(xtar)}}
+\item{L}{Square matrix that scales the bias parameter gamma. If \code{NULL}, then
+the \code{make_L()} function will be called to set \code{L} as the cholesky
+decomposition of \code{crossprod(xtar)}}
 
 \item{standardize}{If TRUE, then \code{xext} will be standardized but only in the
 part of the augmented data matrix corresponding to gamma.}

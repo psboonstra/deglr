@@ -11,10 +11,10 @@ deglr(
   yext,
   family,
   alpha = 0,
-  nlambda = 50,
-  lambda.min.ratio = ifelse(nrow(xtar) < d/2, 1e-04, 1e-08),
-  fixed_lambda_seq = NULL,
-  return_only_at = NULL,
+  nlambda = 20,
+  lambda.min.ratio = ifelse(nrow(xtar) < d/2, 0.001, 1e-06),
+  lambda = NULL,
+  return_what = NULL,
   L = NULL,
   standardize = TRUE,
   thresh = 1e-14,
@@ -39,17 +39,23 @@ sequence of lambdas will always be exactly this long}
 
 \item{lambda.min.ratio}{See glmnet::glmnet()}
 
-\item{fixed_lambda_seq}{User can provide a fixed sequence of lambdas instead
+\item{lambda}{User can provide a fixed sequence of lambdas instead
 of an automatically constructed sequence. If provided, this will override
 \code{nlambda} and \code{lambda.min.ratio}}
 
-\item{return_only_at}{A vector of lambdas that may or may not have overlap
-with \code{fixed_lambda_seq.} This argument allows the user to separately indicate
-that they only want results returned corresponding to specific values of
-lambda.}
+\item{return_what}{This argument allows the user to separately indicate that
+they only want results returned corresponding to specific values of lambda
+or that they only want to calculate an appropriate sequence of lambdas.
+This can take on one of three values: \code{NULL} (its default), or a numeric
+vector of non-negative numbers, or anything else. If \code{NULL}, then the
+function will return the entire solution path. If a numeric vector, then
+the function will return the solution path only for these values of lambda.
+If anything else, then the function will return a sequence of lambdas and
+nothing else.}
 
-\item{L}{Square matrix that scales the bias parameter gamma. The default
-value is to use inverse of the cholesky decomposition of crossprod(xtar)}
+\item{L}{Square matrix that scales the bias parameter gamma. If \code{NULL}, then
+the \code{make_L()} function will be called to set \code{L} as the cholesky
+decomposition of \code{crossprod(xtar)}}
 
 \item{standardize}{If TRUE, then xext will be standardized but only in the
 part of the augmented data matrix corresponding to gamma.}
@@ -57,6 +63,9 @@ part of the augmented data matrix corresponding to gamma.}
 \item{thresh}{See glmnet::glmnet()}
 
 \item{maxit}{See glmnet::glmnet()}
+}
+\value{
+A named list
 }
 \description{
 Fit data-enriched generalized linear regression model

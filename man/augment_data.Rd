@@ -17,8 +17,9 @@ augment_data(xtar, ytar, xext, yext, family, L = NULL, standardize = TRUE)
 
 \item{family}{One of 'gaussian', 'binomial', or 'cox'}
 
-\item{L}{Square matrix that scales the bias parameter gamma. The default
-value is to use inverse of the cholesky decomposition of crossprod(xtar)}
+\item{L}{Square matrix that scales the bias parameter gamma. If \code{NULL}, then
+the \code{make_L()} function will be called to set \code{L} as the cholesky
+decomposition of \code{crossprod(xtar)}}
 
 \item{standardize}{If TRUE, then xext will be standardized but only in the
 part of the augmented data matrix corresponding to gamma.}

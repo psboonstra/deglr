@@ -9,6 +9,9 @@ log1plex(x)
 \arguments{
 \item{x}{Vector of one or more numbers}
 }
+\value{
+A vector of equal length
+}
 \description{
 Safe function for accurately calculating log(1 + exp(x)) even for very large and small x's
 }

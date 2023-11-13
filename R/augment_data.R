@@ -5,8 +5,9 @@
 #' @param xext Predictor matrix from the external population
 #' @param yext Outcome vector from the external population
 #' @param family One of 'gaussian', 'binomial', or 'cox'
-#' @param L Square matrix that scales the bias parameter gamma. The default
-#'   value is to use inverse of the cholesky decomposition of crossprod(xtar)
+#' @param L Square matrix that scales the bias parameter gamma. If `NULL`, then
+#'   the `make_L()` function will be called to set `L` as the cholesky
+#'   decomposition of `crossprod(xtar)`
 #' @param standardize If TRUE, then xext will be standardized but only in the
 #'   part of the augmented data matrix corresponding to gamma.
 #'

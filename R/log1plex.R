@@ -2,7 +2,7 @@
 #'
 #' @param x Vector of one or more numbers
 #'
-#' @return
+#' @return A vector of equal length
 #' @export
 #'
 #' @examples
